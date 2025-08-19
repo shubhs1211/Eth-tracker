@@ -2,9 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Live mNAV Dashboard – BMNR &amp; SBET</title>
+    <title>Live mNAV Dashboard — BMNR & SBET</title>
     <style>
       /* Base styles for page structure */
       body {
@@ -94,12 +93,28 @@
           font-size: 1.2rem;
         }
       }
+
+      /* Refresh button styling */
+      #refresh-button {
+        display: inline-block;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: #4b6cb7;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+      }
+      #refresh-button:hover {
+        background: #365a96;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>Live mNAV Dashboard</h1>
-      <p>Market Cap to Net Asset Value (mNAV) ratios for major Ethereum treasury stocks</p>
+      <p>Market Cap to Net Asset Value (mNAV) ratios for Ethereum treasury stocks</p>
     </header>
     <div class="container">
       <!-- BMNR card -->
@@ -151,126 +166,80 @@
       </p>
 
       <!-- Last updated timestamp will be populated by the script -->
-      <p id="last-updated" style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;"></p>
+      <p id="last-updated" style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;">Last updated: —</p>
+      <!-- Refresh now button -->
+      <button id="refresh-button">Refresh now</button>
     </div>
     <footer>
-      Data sourced from publicly available disclosures and news reports, including Blockworks【435112548905025†L64-L67】, MarketBeat【170830450899214†L339-L352】 and CoinCentral【258617695965557†L333-L352】.
+      Data sources include publicly available disclosures and news reports, such as Blockworks【435112548905025†L64-L67】, MarketBeat【170830450899214†L339-L352】 and CoinCentral【258617695965557†L333-L352】. Values are refreshed hourly via GitHub Actions using the Financial Modeling Prep and CoinGecko APIs.
     </footer>
 
     <script>
-      /*
-       * Live data configuration
-       *
-       * To enable automatic updates of the mNAV ratios, share prices, and ETH price,
-       * you must provide a free API key from Financial Modeling Prep (FMP).
-       * Sign up at https://financialmodelingprep.com/developer for a free key and
-       * replace `YOUR_FMP_API_KEY` below with your actual key. Without a key,
-       * requests to the FMP API will fail.
-       *
-       * ETH price is fetched from the public CoinGecko API which does not
-       * require authentication. Share counts and ETH holdings are static
-       * values reflecting the last reported figures【435112548905025†L64-L67】. You can update
-       * these numbers directly in the `shares` and `holdings` objects if new
-       * disclosures are available.
-       */
-      const config = {
-        // Financial Modeling Prep API key (provided by user)
-        fmpApiKey: 'sP9FHiAHJEoTXZUj5LJ1fUOixJD78GQT',
-        shares: {
-          bmnr: 173_496_950, // shares outstanding for BMNR as of Aug 11 2025【473954857236543†L794-L797】
-          sbet: 179_510_232, // approximate shares outstanding for SBET (update as needed)
-        },
-        holdings: {
-          bmnr: 1_523_373, // ETH held by BMNR【435112548905025†L64-L67】
-          sbet: 740_760,   // ETH held by SBET【258617695965557†L333-L352】
-        },
+      // Static holdings and shares based on latest disclosures
+      const HOLDINGS = {
+        bmnr: { eth: 1_523_373, shares: 173_496_950 }, // ETH and shares for BMNR【435112548905025†L64-L67】【473954857236543†L794-L797】
+        sbet: { eth: 740_760,  shares: 24_000_000 }, // ETH and shares for SBET【258617695965557†L333-L352】
       };
 
-      function formatNumber(num) {
-        return num.toLocaleString(undefined, {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
+      // DOM references
+      const els = {
+        bmnr: {
+          price: document.getElementById('bmnr-price'),
+          mnav:  document.getElementById('bmnr-mnav'),
+          eth:   document.getElementById('bmnr-eth'),
+        },
+        sbet: {
+          price: document.getElementById('sbet-price'),
+          mnav:  document.getElementById('sbet-mnav'),
+          eth:   document.getElementById('sbet-eth'),
+        },
+        updated: document.getElementById('last-updated'),
+      };
+
+      function fmtUSD(n) {
+        return n == null ? '—' : `$${Number(n).toFixed(2)}`;
       }
-      function formatDecimal(num) {
-        return num.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+      function fmtETH(n) {
+        return n == null ? '—' : n.toLocaleString();
+      }
+      function fmtMNAV(n) {
+        return n == null || !isFinite(n) ? '—' : Number(n).toFixed(2);
       }
 
-      async function fetchStockPrice(symbol) {
-        // Use FMP Simple Quote API to fetch the latest stock price
-        const apiKey = config.fmpApiKey;
-        const endpoint = `https://financialmodelingprep.com/api/v3/quote-short/${symbol}?apikey=${apiKey}`;
+      async function loadFromJson() {
         try {
-          const response = await fetch(endpoint);
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
-            // The API returns an array of quotes; we need the price field
-            return data[0].price;
-          }
-          throw new Error('Unexpected API response');
-        } catch (error) {
-          console.error('Error fetching stock price for', symbol, error);
-          return null;
+          const res = await fetch('./data/prices.json', { cache: 'no-store' });
+          const data = await res.json();
+          const ethUsd = data?.eth?.usd ?? null;
+          const bmnrPrice = data?.bmnr?.price ?? null;
+          const sbetPrice = data?.sbet?.price ?? null;
+          // Update price displays
+          els.bmnr.price.textContent = fmtUSD(bmnrPrice);
+          els.sbet.price.textContent = fmtUSD(sbetPrice);
+          // ETH holdings are static
+          els.bmnr.eth.textContent = fmtETH(HOLDINGS.bmnr.eth) + ' ETH';
+          els.sbet.eth.textContent = fmtETH(HOLDINGS.sbet.eth) + ' ETH';
+          // Compute mNAV values if all numbers present
+          const bmnrMnav = bmnrPrice && ethUsd ? (bmnrPrice * HOLDINGS.bmnr.shares) / (HOLDINGS.bmnr.eth * ethUsd) : null;
+          const sbetMnav = sbetPrice && ethUsd ? (sbetPrice * HOLDINGS.sbet.shares) / (HOLDINGS.sbet.eth * ethUsd) : null;
+          els.bmnr.mnav.textContent = fmtMNAV(bmnrMnav);
+          els.sbet.mnav.textContent = fmtMNAV(sbetMnav);
+          // Last updated timestamp from JSON or current time
+          const updated = data?.updated_at ? new Date(data.updated_at) : new Date();
+          els.updated.textContent = 'Last updated: ' + updated.toUTCString();
+        } catch (e) {
+          console.error('Failed to load data/prices.json', e);
+          els.updated.textContent = 'Last updated: — (failed to load data)';
         }
       }
 
-      async function fetchEthPrice() {
-        // Use CoinGecko API to get the current ETH price in USD
-        const endpoint = 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd';
-        try {
-          const response = await fetch(endpoint);
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-          const data = await response.json();
-          return data.ethereum.usd;
-        } catch (error) {
-          console.error('Error fetching ETH price', error);
-          return null;
-        }
-      }
+      document.getElementById('refresh-button').addEventListener('click', () => {
+        loadFromJson();
+      });
 
-      function updateDOM(symbol, mnav, price, ethHolding) {
-        const mnavEl = document.getElementById(`${symbol}-mnav`);
-        const priceEl = document.getElementById(`${symbol}-price`);
-        const ethEl = document.getElementById(`${symbol}-eth`);
-        if (mnavEl) mnavEl.textContent = formatDecimal(mnav);
-        if (priceEl) priceEl.textContent = price !== null ? `$${formatDecimal(price)}` : '—';
-        if (ethEl) ethEl.textContent = formatNumber(ethHolding) + ' ETH';
-      }
-
-      async function updateValues() {
-        const ethPrice = await fetchEthPrice();
-        const bmnrPrice = await fetchStockPrice('BMNR');
-        const sbetPrice = await fetchStockPrice('SBET');
-        if (ethPrice && bmnrPrice !== null) {
-          const bmnrNav = config.holdings.bmnr * ethPrice;
-          const bmnrMarketCap = config.shares.bmnr * bmnrPrice;
-          const bmnrMnav = bmnrNav > 0 ? bmnrMarketCap / bmnrNav : null;
-          updateDOM('bmnr', bmnrMnav, bmnrPrice, config.holdings.bmnr);
-        }
-        if (ethPrice && sbetPrice !== null) {
-          const sbetNav = config.holdings.sbet * ethPrice;
-          const sbetMarketCap = config.shares.sbet * sbetPrice;
-          const sbetMnav = sbetNav > 0 ? sbetMarketCap / sbetNav : null;
-          updateDOM('sbet', sbetMnav, sbetPrice, config.holdings.sbet);
-        }
-        // Update timestamp
-        const timestamp = new Date().toLocaleString();
-        const timeEl = document.getElementById('last-updated');
-        if (timeEl) timeEl.textContent = `Last updated: ${timestamp}`;
-      }
-
-      // Initial population and periodic updates
-      updateValues();
-      // Refresh values every hour (60 minutes * 60 seconds * 1000 ms)
-      setInterval(updateValues, 60 * 60 * 1000);
+      // Initial load and periodic refresh every hour
+      loadFromJson();
+      setInterval(loadFromJson, 60 * 60 * 1000);
     </script>
   </body>
 </html>
