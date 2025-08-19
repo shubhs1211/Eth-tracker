@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Live mNAV Dashboard – BMNR &amp; SBET</title>
+    <style>
+      /* Base styles for page structure */
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #f7f7f7;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      header {
+        background: linear-gradient(135deg, #4b6cb7, #182848);
+        color: #fff;
+        padding: 2rem 1rem;
+        text-align: center;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+      }
+      header p {
+        margin-top: 0.5rem;
+        font-size: 1.1rem;
+        opacity: 0.8;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+      }
+
+      .card h2 {
+        margin-top: 0;
+        color: #2c3e50;
+      }
+
+      .metrics {
+        display: flex;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+      }
+      .metric {
+        flex: 1 1 250px;
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+      }
+      .metric h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #555;
+      }
+      .metric span {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-top: 0.25rem;
+      }
+
+      .disclaimer {
+        font-size: 0.9rem;
+        color: #777;
+        margin-top: 1rem;
+      }
+
+      footer {
+        text-align: center;
+        padding: 1rem 0;
+        color: #777;
+        font-size: 0.9rem;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 600px) {
+        header h1 {
+          font-size: 2rem;
+        }
+        .metric span {
+          font-size: 1.2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Live mNAV Dashboard</h1>
+      <p>Market Cap to Net Asset Value (mNAV) ratios for major Ethereum treasury stocks</p>
+    </header>
+    <div class="container">
+      <!-- BMNR card -->
+      <div class="card" id="bmnr-card">
+        <h2>BitMine Immersion Technologies (BMNR)</h2>
+        <div class="metrics">
+          <div class="metric">
+            <h3>mNAV</h3>
+            <span id="bmnr-mnav">—</span>
+          </div>
+          <div class="metric">
+            <h3>Share price</h3>
+            <span id="bmnr-price">—</span>
+          </div>
+          <div class="metric">
+            <h3>ETH holdings</h3>
+            <span id="bmnr-eth">—</span>
+          </div>
+        </div>
+        <div class="disclaimer">
+          Values reflect the latest available data as of 19 August 2025. BMNR’s mNAV approximates the ratio of its market capitalisation to the market value of its Ethereum treasury【435112548905025†L64-L67】.
+        </div>
+      </div>
+
+      <!-- SBET card -->
+      <div class="card" id="sbet-card">
+        <h2>SharpLink Gaming (SBET)</h2>
+        <div class="metrics">
+          <div class="metric">
+            <h3>mNAV</h3>
+            <span id="sbet-mnav">—</span>
+          </div>
+          <div class="metric">
+            <h3>Share price</h3>
+            <span id="sbet-price">—</span>
+          </div>
+          <div class="metric">
+            <h3>ETH holdings</h3>
+            <span id="sbet-eth">—</span>
+          </div>
+        </div>
+        <div class="disclaimer">
+          Values reflect the latest available data as of 19 August 2025. SBET’s mNAV is derived from its market capitalisation and the value of its Ethereum holdings【435112548905025†L64-L67】.
+        </div>
+      </div>
+
+      <p class="disclaimer">
+        <strong>Note:</strong> The mNAV ratio indicates how the market values a company relative to the net asset value of its Ethereum treasury. A ratio above 1 suggests that the stock trades at a premium to the value of its ETH holdings, while a ratio below 1 indicates a discount. These values may change throughout the trading day.
+      </p>
+
+      <!-- Last updated timestamp will be populated by the script -->
+      <p id="last-updated" style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;"></p>
+    </div>
+    <footer>
+      Data sourced from publicly available disclosures and news reports, including Blockworks【435112548905025†L64-L67】, MarketBeat【170830450899214†L339-L352】 and CoinCentral【258617695965557†L333-L352】.
+    </footer>
+
+    <script>
+      /*
+       * Live data configuration
+       *
+       * To enable automatic updates of the mNAV ratios, share prices, and ETH price,
+       * you must provide a free API key from Financial Modeling Prep (FMP).
+       * Sign up at https://financialmodelingprep.com/developer for a free key and
+       * replace `YOUR_FMP_API_KEY` below with your actual key. Without a key,
+       * requests to the FMP API will fail.
+       *
+       * ETH price is fetched from the public CoinGecko API which does not
+       * require authentication. Share counts and ETH holdings are static
+       * values reflecting the last reported figures【435112548905025†L64-L67】. You can update
+       * these numbers directly in the `shares` and `holdings` objects if new
+       * disclosures are available.
+       */
+      const config = {
+        // Financial Modeling Prep API key (provided by user)
+        fmpApiKey: 'sP9FHiAHJEoTXZUj5LJ1fUOixJD78GQT',
+        shares: {
+          bmnr: 173_496_950, // shares outstanding for BMNR as of Aug 11 2025【473954857236543†L794-L797】
+          sbet: 179_510_232, // approximate shares outstanding for SBET (update as needed)
+        },
+        holdings: {
+          bmnr: 1_523_373, // ETH held by BMNR【435112548905025†L64-L67】
+          sbet: 740_760,   // ETH held by SBET【258617695965557†L333-L352】
+        },
+      };
+
+      function formatNumber(num) {
+        return num.toLocaleString(undefined, {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+      }
+      function formatDecimal(num) {
+        return num.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      }
+
+      async function fetchStockPrice(symbol) {
+        // Use FMP Simple Quote API to fetch the latest stock price
+        const apiKey = config.fmpApiKey;
+        const endpoint = `https://financialmodelingprep.com/api/v3/quote-short/${symbol}?apikey=${apiKey}`;
+        try {
+          const response = await fetch(endpoint);
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            // The API returns an array of quotes; we need the price field
+            return data[0].price;
+          }
+          throw new Error('Unexpected API response');
+        } catch (error) {
+          console.error('Error fetching stock price for', symbol, error);
+          return null;
+        }
+      }
+
+      async function fetchEthPrice() {
+        // Use CoinGecko API to get the current ETH price in USD
+        const endpoint = 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd';
+        try {
+          const response = await fetch(endpoint);
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          const data = await response.json();
+          return data.ethereum.usd;
+        } catch (error) {
+          console.error('Error fetching ETH price', error);
+          return null;
+        }
+      }
+
+      function updateDOM(symbol, mnav, price, ethHolding) {
+        const mnavEl = document.getElementById(`${symbol}-mnav`);
+        const priceEl = document.getElementById(`${symbol}-price`);
+        const ethEl = document.getElementById(`${symbol}-eth`);
+        if (mnavEl) mnavEl.textContent = formatDecimal(mnav);
+        if (priceEl) priceEl.textContent = price !== null ? `$${formatDecimal(price)}` : '—';
+        if (ethEl) ethEl.textContent = formatNumber(ethHolding) + ' ETH';
+      }
+
+      async function updateValues() {
+        const ethPrice = await fetchEthPrice();
+        const bmnrPrice = await fetchStockPrice('BMNR');
+        const sbetPrice = await fetchStockPrice('SBET');
+        if (ethPrice && bmnrPrice !== null) {
+          const bmnrNav = config.holdings.bmnr * ethPrice;
+          const bmnrMarketCap = config.shares.bmnr * bmnrPrice;
+          const bmnrMnav = bmnrNav > 0 ? bmnrMarketCap / bmnrNav : null;
+          updateDOM('bmnr', bmnrMnav, bmnrPrice, config.holdings.bmnr);
+        }
+        if (ethPrice && sbetPrice !== null) {
+          const sbetNav = config.holdings.sbet * ethPrice;
+          const sbetMarketCap = config.shares.sbet * sbetPrice;
+          const sbetMnav = sbetNav > 0 ? sbetMarketCap / sbetNav : null;
+          updateDOM('sbet', sbetMnav, sbetPrice, config.holdings.sbet);
+        }
+        // Update timestamp
+        const timestamp = new Date().toLocaleString();
+        const timeEl = document.getElementById('last-updated');
+        if (timeEl) timeEl.textContent = `Last updated: ${timestamp}`;
+      }
+
+      // Initial population and periodic updates
+      updateValues();
+      // Refresh values every hour (60 minutes * 60 seconds * 1000 ms)
+      setInterval(updateValues, 60 * 60 * 1000);
+    </script>
+  </body>
+</html>
