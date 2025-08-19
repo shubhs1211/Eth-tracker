@@ -1,0 +1,81 @@
+name: Update Prices JSON (hourly)
+
+on:
+  schedule:
+    - cron: "0 * * * *"        # every hour on the hour
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/update-prices.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # allow committing the JSON
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq is available
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
+      - name: Fetch latest prices (FMP + CoinGecko)
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          mkdir -p data
+
+          # Stock prices from FMP
+          curl -s "https://financialmodelingprep.com/api/v3/quote-short/BMNR?apikey=${FMP_API_KEY}" > /tmp/bmnr.json
+          curl -s "https://financialmodelingprep.com/api/v3/quote-short/SBET?apikey=${FMP_API_KEY}" > /tmp/sbet.json
+
+          # ETH price from CoinGecko
+          curl -s "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd" > /tmp/eth.json
+
+          UPDATED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          BMNR_PRICE=$(jq -r '.[0].price // empty' /tmp/bmnr.json)
+          SBET_PRICE=$(jq -r '.[0].price // empty' /tmp/sbet.json)
+          ETH_USD=$(jq -r '.ethereum.usd // empty' /tmp/eth.json)
+
+          if [ -z "$BMNR_PRICE" ] || [ -z "$SBET_PRICE" ] || [ -z "$ETH_USD" ]; then
+            echo "One or more sources returned empty; keeping previous data if present."
+          fi
+
+          if [ -f data/prices.json ]; then
+            cp data/prices.json /tmp/prices.json
+          else
+            cat > /tmp/prices.json <<'JSON'
+            {
+              "updated_at": null,
+              "bmnr": { "price": null },
+              "sbet": { "price": null },
+              "eth": { "usd": null }
+            }
+JSON
+          fi
+
+          jq --arg time "$UPDATED_AT" \
+             --argjson bmnr "$( [ -n "$BMNR_PRICE" ] && echo "$BMNR_PRICE" || echo null )" \
+             --argjson sbet "$( [ -n "$SBET_PRICE" ] && echo "$SBET_PRICE" || echo null )" \
+             --argjson eth  "$( [ -n "$ETH_USD"    ] && echo "$ETH_USD"    || echo null )" \
+             '
+             .updated_at = $time
+             | (if $bmnr!=null then .bmnr.price = $bmnr else . end)
+             | (if $sbet!=null then .sbet.price = $sbet else . end)
+             | (if $eth !=null then .eth.usd   = $eth  else . end)
+             ' /tmp/prices.json > data/prices.json
+
+          echo "New data/prices.json:"
+          cat data/prices.json
+
+      - name: Commit JSON
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update data/prices.json (hourly)"
+          file_pattern: data/prices.json
