@@ -43,23 +43,19 @@ jobs:
           SBET_PRICE=$(jq -r '.[0].price // empty' /tmp/sbet.json)
           ETH_USD=$(jq -r '.ethereum.usd // empty' /tmp/eth.json)
 
+          # Fallback: if any value is missing, keep previous values
           if [ -z "$BMNR_PRICE" ] || [ -z "$SBET_PRICE" ] || [ -z "$ETH_USD" ]; then
             echo "One or more sources returned empty; keeping previous data if present."
           fi
 
+          # If previous file exists, copy it; else create new JSON with null values
           if [ -f data/prices.json ]; then
             cp data/prices.json /tmp/prices.json
           else
-            cat > /tmp/prices.json <<'JSON'
-            {
-              "updated_at": null,
-              "bmnr": { "price": null },
-              "sbet": { "price": null },
-              "eth": { "usd": null }
-            }
-JSON
+            echo '{"updated_at": null, "bmnr": {"price": null}, "sbet": {"price": null}, "eth": {"usd": null}}' > /tmp/prices.json
           fi
 
+          # Update JSON fields if new values available
           jq --arg time "$UPDATED_AT" \
              --argjson bmnr "$( [ -n "$BMNR_PRICE" ] && echo "$BMNR_PRICE" || echo null )" \
              --argjson sbet "$( [ -n "$SBET_PRICE" ] && echo "$SBET_PRICE" || echo null )" \
