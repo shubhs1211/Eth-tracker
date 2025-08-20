@@ -39,8 +39,13 @@ jobs:
           curl -s "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd" > /tmp/eth.json
 
           UPDATED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          BMNR_PRICE=$(jq -r '.[0].price // empty' /tmp/bmnr.json)
-          SBET_PRICE=$(jq -r '.[0].price // empty' /tmp/sbet.json)
+          # Extract the first price found in the JSON.  Some FMP responses return an
+          # array (e.g. [{"symbol": "BMNR", "price": 50.25}]) while error
+          # responses may return an object or a primitive.  Using `..|.price?`
+          # recursively finds any `price` field in the JSON.  We pipe through
+          # `head -n1` to pick the first value, if one exists.
+          BMNR_PRICE=$(jq -r '..|.price? // empty' /tmp/bmnr.json | head -n1)
+          SBET_PRICE=$(jq -r '..|.price? // empty' /tmp/sbet.json | head -n1)
           ETH_USD=$(jq -r '.ethereum.usd // empty' /tmp/eth.json)
 
           # Fallback: if any value is missing, keep previous values
