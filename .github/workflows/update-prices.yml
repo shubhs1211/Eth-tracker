@@ -31,9 +31,16 @@ jobs:
         run: |
           mkdir -p data
 
-          # Stock prices from FMP
-          curl -s "https://financialmodelingprep.com/api/v3/quote-short/BMNR?apikey=${FMP_API_KEY}" > /tmp/bmnr.json
-          curl -s "https://financialmodelingprep.com/api/v3/quote-short/SBET?apikey=${FMP_API_KEY}" > /tmp/sbet.json
+          # Stock prices from FMP.  Use -L to follow redirects and a browser-like
+          # User-Agent header to reduce the chance of being blocked.  If these
+          # requests are redirected or fail, they may produce empty files; the
+          # jq extraction logic below will treat missing prices as empty.
+          curl -s -L -H "User-Agent: Mozilla/5.0" \
+            "https://financialmodelingprep.com/api/v3/quote-short/BMNR?apikey=${FMP_API_KEY}" \
+            > /tmp/bmnr.json
+          curl -s -L -H "User-Agent: Mozilla/5.0" \
+            "https://financialmodelingprep.com/api/v3/quote-short/SBET?apikey=${FMP_API_KEY}" \
+            > /tmp/sbet.json
 
           # ETH price from CoinGecko
           curl -s "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd" > /tmp/eth.json
